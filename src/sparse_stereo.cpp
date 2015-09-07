@@ -10,6 +10,7 @@
 #include <opencv2/gpu/gpu.hpp>
 #endif
 
+
 #ifdef OPENCV_HAS_NONFREE
 #include <opencv2/nonfree/features2d.hpp>
 #endif
@@ -32,8 +33,8 @@ StereoFeatures::StereoFeatures()
     : dist_left( NULL ), dist_right( NULL )
 {
     descriptorMatcher = cv::DescriptorMatcher::create("FlannBased");
-    initDetector( config.targetNumFeatures );
-    setConfiguration( FeatureConfiguration() );
+    //initDetector( config.targetNumFeatures );
+    //setConfiguration( FeatureConfiguration() );
     use_gpu_detector = false;
 }
 
@@ -75,6 +76,8 @@ void StereoFeatures::initDetector( size_t lastNumFeatures )
     DETECTOR detectorType = config.detectorType;
     size_t localLastNumFeatures = lastNumFeatures;
     size_t targetNumFeatures = config.targetNumFeatures;
+    std::cout << "[evanbouk_debug: The detector type is " << detectorType << std::endl;
+    //detectorType= DETECTOR_GOOD;
     switch(detectorType)
     {
 	case DETECTOR_SURFGPU:
@@ -198,7 +201,7 @@ void StereoFeatures::findFeatures_threading( const cv::Mat &image, FeatureInfo& 
   cv::Mat sub4( image_c, cv::Rect( image_c.size().width / 2 - border, image_c.size().height / 2 - border, image_c.size().width / 2 + border, image_c.size().height / 2 + border) );
   // create temporary storages
   FeatureInfo info1, info2, info3, info4;
-
+    
   // run threads
   std::thread t1(&StereoFeatures::findFeatures2, this, sub1, std::ref(info1), left_frame, crop_left, crop_right);
   std::thread t2(&StereoFeatures::findFeatures2, this, sub2, std::ref(info2), left_frame, crop_left, crop_right);
@@ -320,7 +323,7 @@ void StereoFeatures::findFeatures2( const cv::Mat &image, FeatureInfo& info, boo
 void StereoFeatures::processFramePair( const cv::Mat &left_image, const cv::Mat &right_image, StereoFeatureArray *stereo_features )
 {
     stereoFeatures.clear();
-
+    
     findFeatures( left_image, right_image );
     if(!getPutativeStereoCorrespondences())
     {
@@ -341,7 +344,7 @@ void StereoFeatures::findFeatures( const cv::Mat &leftImage, const cv::Mat &righ
 	calib.setImageSize( imageSize );
 	calib.initCv();
     }
-
+    
     // this is the right time to set the distance images
     // in the extractor if they are available, then run
     // the findFeatures method
@@ -349,11 +352,11 @@ void StereoFeatures::findFeatures( const cv::Mat &leftImage, const cv::Mat &righ
 	dynamic_cast<cv::PSurfDescriptorExtractor*>( &(*descriptorExtractor) ); 
     if( dist_left && psurf )
 	psurf->setDistanceImage( dist_left );
-
+    
     std::thread *t1 = NULL, *t2 = NULL;
     leftFeatures.keypoints.clear();
     rightFeatures.keypoints.clear();
-
+    
     switch(use_threading)
     {
       case 2: // use internal and external threading (e.g. one thread per stereo image and four threads per individual image = 8 threads)
@@ -366,7 +369,7 @@ void StereoFeatures::findFeatures( const cv::Mat &leftImage, const cv::Mat &righ
         findFeatures2( leftImage, leftFeatures, true, crop_left, crop_right );
         break;
     }
-
+    
     if( dist_right && psurf ) 
 	psurf->setDistanceImage( dist_right );
 
@@ -375,6 +378,7 @@ void StereoFeatures::findFeatures( const cv::Mat &leftImage, const cv::Mat &righ
       case 2: // use internal and external threading (e.g. one thread per stereo image and four threads per individual image = 8 threads)
         t2 = new std::thread(&StereoFeatures::findFeatures_threading, this, rightImage, std::ref(rightFeatures), false, crop_left, crop_right);
         break;
+
       case 1: // only use external threading (e.g. one thread per stereo image = 2 threads
         t2 = new std::thread(&StereoFeatures::findFeatures2, this, rightImage, std::ref(rightFeatures), false, crop_left, crop_right);
         break;
@@ -382,11 +386,10 @@ void StereoFeatures::findFeatures( const cv::Mat &leftImage, const cv::Mat &righ
         findFeatures2( rightImage, rightFeatures, false, crop_left, crop_right );
         break;
     }
-
     if(use_threading > 0)
     {
       t1->join();
-      t2->join();
+      t2->join();      
 
       delete t1;
       delete t2;
